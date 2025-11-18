@@ -183,6 +183,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # 获取所有历史和 tags
 
       - name: Download GOST binary
         uses: actions/download-artifact@v4
@@ -195,10 +197,39 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="${{ needs.check-version.outputs.version }}"
+          COMMIT_SHA="${{ github.sha }}"
           
-          # 创建并推送 tag
-          git tag "${VERSION}" ${{ github.sha }}
-          git push origin "${VERSION}"
+          # 配置 git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # 获取所有远程 tags
+          git fetch --tags origin
+          
+          # 检查 tag 是否已存在（本地或远程）
+          if git ls-remote --tags origin "refs/tags/${VERSION}" | grep -q .; then
+            # 获取远程 tag 指向的 commit
+            EXISTING_TAG_SHA=$(git ls-remote --tags origin "refs/tags/${VERSION}" | cut -f1)
+            if [ "$EXISTING_TAG_SHA" = "$COMMIT_SHA" ]; then
+              echo "Tag ${VERSION} 已存在且指向相同 commit，跳过创建"
+            else
+              echo "Tag ${VERSION} 已存在但指向不同 commit，删除旧 tag 并重新创建"
+              git tag -d "${VERSION}" 2>/dev/null || true
+              git push origin ":refs/tags/${VERSION}" 2>/dev/null || true
+              git tag "${VERSION}" "${COMMIT_SHA}"
+              git push origin "${VERSION}" --force
+            fi
+          else
+            echo "创建新 tag ${VERSION}"
+            git tag "${VERSION}" "${COMMIT_SHA}"
+            git push origin "${VERSION}"
+          fi
+          
+          # 检查 release 是否已存在
+          if gh release view "${VERSION}" --repo ${{ github.repository }} >/dev/null 2>&1; then
+            echo "Release ${VERSION} 已存在，删除旧 release"
+            gh release delete "${VERSION}" --yes --repo ${{ github.repository }} || true
+          fi
           
           # 创建 release
           gh release create "${VERSION}" \
@@ -219,21 +250,21 @@ jobs:
           
           ## Details
           - Build date: $(date -u +%Y-%m-%dT%H:%M:%SZ)
-          - Commit: ${{ github.sha }}" \
+          - Commit: ${COMMIT_SHA}" \
             --repo ${{ github.repository }}
           
           # 上传所有文件到 release
           echo "📤 上传 GOST 二进制..."
-          gh release upload "${VERSION}" ./artifacts/gost-amd64 --clobber
-          gh release upload "${VERSION}" ./artifacts/gost-arm64 --clobber
+          gh release upload "${VERSION}" ./artifacts/gost-amd64 --clobber --repo ${{ github.repository }}
+          gh release upload "${VERSION}" ./artifacts/gost-arm64 --clobber --repo ${{ github.repository }}
           
           echo "📤 上传安装脚本..."
-          gh release upload "${VERSION}" ./install.sh --clobber
-          gh release upload "${VERSION}" ./panel_install.sh --clobber
+          gh release upload "${VERSION}" ./install.sh --clobber --repo ${{ github.repository }}
+          gh release upload "${VERSION}" ./panel_install.sh --clobber --repo ${{ github.repository }}
           
           echo "📤 上传配置文件..."
-          gh release upload "${VERSION}" ./gost.sql --clobber
-          gh release upload "${VERSION}" ./docker-compose-v4.yml --clobber
-          gh release upload "${VERSION}" ./docker-compose-v6.yml --clobber
+          gh release upload "${VERSION}" ./gost.sql --clobber --repo ${{ github.repository }}
+          gh release upload "${VERSION}" ./docker-compose-v4.yml --clobber --repo ${{ github.repository }}
+          gh release upload "${VERSION}" ./docker-compose-v6.yml --clobber --repo ${{ github.repository }}
           
           echo "✅ 所有文件已上传到 Release ${VERSION}"
