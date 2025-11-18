@@ -8,16 +8,16 @@ export LC_ALL=C
 
 
 # 全局下载地址配置
-DOCKER_COMPOSEV4_URL="https://github.com/bqlpfy/flux-panel/releases/download/1.4.2/docker-compose-v4.yml"
-DOCKER_COMPOSEV6_URL="https://github.com/bqlpfy/flux-panel/releases/download/1.4.2/docker-compose-v6.yml"
-GOST_SQL_URL="https://github.com/bqlpfy/flux-panel/releases/download/1.4.2/gost.sql"
+DOCKER_COMPOSEV4_URL="https://github.com/loadinghtml/flux-panel/releases/download/1.4.2/docker-compose-v4.yml"
+DOCKER_COMPOSEV6_URL="https://github.com/loadinghtml/flux-panel/releases/download/1.4.2/docker-compose-v6.yml"
+GOST_SQL_URL="https://github.com/loadinghtml/flux-panel/releases/download/1.4.2/gost.sql"
 
 COUNTRY=$(curl -s https://ipinfo.io/country)
 if [ "$COUNTRY" = "CN" ]; then
     # 拼接 URL
-    DOCKER_COMPOSEV4_URL="https://ghfast.top/${DOCKER_COMPOSEV4_URL}"
-    DOCKER_COMPOSEV6_URL="https://ghfast.top/${DOCKER_COMPOSEV6_URL}"
-    GOST_SQL_URL="https://ghfast.top/${GOST_SQL_URL}"
+    DOCKER_COMPOSEV4_URL="https://hk.gh-proxy.com/${DOCKER_COMPOSEV4_URL}"
+    DOCKER_COMPOSEV6_URL="https://hk.gh-proxy.com/${DOCKER_COMPOSEV6_URL}"
+    GOST_SQL_URL="https://hk.gh-proxy.com/${GOST_SQL_URL}"
 fi
 
 
