@@ -11,9 +11,9 @@ on:
   workflow_dispatch:  # 允许手动触发
     inputs:
       force_build:
-        description: '强制构建（即使 tag 已存在）'
+        description: '强制构建（即使 tag 已存在）。默认：是（手动触发时总是构建）'
         required: false
-        default: 'false'
+        default: 'true'
         type: boolean
 
 jobs:
@@ -36,10 +36,26 @@ jobs:
         id: check-tag
         run: |
           FORCE_BUILD="${{ github.event.inputs.force_build }}"
+          EVENT_TYPE="${{ github.event_name }}"
+          echo "Force build input: $FORCE_BUILD"
+          echo "Event type: $EVENT_TYPE"
           
-          if [ "$FORCE_BUILD" = "true" ]; then
-            echo "强制构建已启用，即使 tag 存在也会构建"
-            echo "should_build=true" >> $GITHUB_OUTPUT
+          # 手动触发时，默认强制构建（除非用户明确设置为 false）
+          if [ "$EVENT_TYPE" = "workflow_dispatch" ]; then
+            if [ "$FORCE_BUILD" = "false" ]; then
+              echo "手动触发模式：用户选择不强制构建，检查 tag..."
+              if git rev-parse "${{ env.VERSION }}" >/dev/null 2>&1; then
+                echo "Tag ${{ env.VERSION }} already exists, skip build"
+                echo "should_build=false" >> $GITHUB_OUTPUT
+              else
+                echo "Tag ${{ env.VERSION }} does not exist, will build"
+                echo "should_build=true" >> $GITHUB_OUTPUT
+              fi
+            else
+              echo "手动触发模式：强制构建已启用（即使 tag 存在也会构建）"
+              echo "should_build=true" >> $GITHUB_OUTPUT
+            fi
+          # 自动触发（push）时，检查 tag
           elif git rev-parse "${{ env.VERSION }}" >/dev/null 2>&1; then
             echo "Tag ${{ env.VERSION }} already exists, skip build"
             echo "should_build=false" >> $GITHUB_OUTPUT
@@ -47,6 +63,9 @@ jobs:
             echo "Tag ${{ env.VERSION }} does not exist, will build all components"
             echo "should_build=true" >> $GITHUB_OUTPUT
           fi
+          
+          echo "Final should_build value:"
+          cat $GITHUB_OUTPUT
 
   build-gost:
     name: Build & Compress GOST Binary
@@ -176,8 +195,17 @@ jobs:
 
   create-release:
     name: Create Release and Tag
-    needs: [check-version, build-gost, build-vite, build-java]
-    if: needs.check-version.outputs.should_build == 'true'
+    needs: 
+      - check-version
+      - build-gost
+      - build-vite
+      - build-java
+    if: |
+      always() && 
+      needs.check-version.outputs.should_build == 'true' &&
+      (needs.build-gost.result == 'success' || needs.build-gost.result == 'skipped') &&
+      (needs.build-vite.result == 'success' || needs.build-vite.result == 'skipped') &&
+      (needs.build-java.result == 'success' || needs.build-java.result == 'skipped')
     runs-on: ubuntu-latest
     permissions:
       contents: write
