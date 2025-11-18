@@ -66,21 +66,25 @@ jobs:
           sudo mv upx-4.2.1-amd64_linux/upx /usr/local/bin/
           rm -rf upx-4.2.1-amd64_linux*
 
-      - name: Build GOST binary
+      - name: Build GOST binaries (AMD64 & ARM64)
         working-directory: ./go-gost
         run: |
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o gost
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o gost-amd64
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o gost-arm64
 
       - name: Compress with UPX
         working-directory: ./go-gost
         run: |
-          upx --best --lzma gost
+          upx --best --lzma gost-amd64
+          upx --best --lzma gost-arm64
 
-      - name: Upload GOST artifact
+      - name: Upload GOST artifacts
         uses: actions/upload-artifact@v4
         with:
           name: gost-binary
-          path: ./go-gost/gost
+          path: |
+            ./go-gost/gost-amd64
+            ./go-gost/gost-arm64
 
   build-vite:
     name: Build & Push Vite Frontend
@@ -108,7 +112,7 @@ jobs:
         run: |
           VERSION="${{ needs.check-version.outputs.version }}"
           docker buildx build \
-            --platform linux/amd64 \
+            --platform linux/amd64,linux/arm64 \
             --push \
             -t loadinghtml/vite-frontend:latest \
             -t loadinghtml/vite-frontend:${VERSION} \
@@ -152,7 +156,7 @@ jobs:
         run: |
           VERSION="${{ needs.check-version.outputs.version }}"
           docker buildx build \
-            --platform linux/amd64 \
+            --platform linux/amd64,linux/arm64 \
             --push \
             -t loadinghtml/springboot-backend:latest \
             -t loadinghtml/springboot-backend:${VERSION} \
@@ -190,9 +194,9 @@ jobs:
             --notes "Version ${VERSION}
           
           ## Components
-          - **GOST Binary** (Linux AMD64, compressed with UPX)
-          - **Vite Frontend** Docker Image: \`loadinghtml/vite-frontend:${VERSION}\` / \`loadinghtml/vite-frontend:latest\`
-          - **Spring Boot Backend** Docker Image: \`loadinghtml/springboot-backend:${VERSION}\` / \`loadinghtml/springboot-backend:latest\`
+          - **GOST Binary** (Linux AMD64 & ARM64, compressed with UPX)
+          - **Vite Frontend** Docker Image: \`loadinghtml/vite-frontend:${VERSION}\` / \`loadinghtml/vite-frontend:latest\` (AMD64 & ARM64)
+          - **Spring Boot Backend** Docker Image: \`loadinghtml/springboot-backend:${VERSION}\` / \`loadinghtml/springboot-backend:latest\` (AMD64 & ARM64)
           
           ## Installation Files
           - \`install.sh\` - GOST 客户端安装脚本
@@ -208,7 +212,8 @@ jobs:
           
           # 上传所有文件到 release
           echo "📤 上传 GOST 二进制..."
-          gh release upload "${VERSION}" ./artifacts/gost --clobber
+          gh release upload "${VERSION}" ./artifacts/gost-amd64 --clobber
+          gh release upload "${VERSION}" ./artifacts/gost-arm64 --clobber
           
           echo "📤 上传安装脚本..."
           gh release upload "${VERSION}" ./install.sh --clobber
