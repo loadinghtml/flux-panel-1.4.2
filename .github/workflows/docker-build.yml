@@ -9,6 +9,12 @@ on:
     branches:
       - main
   workflow_dispatch:  # 允许手动触发
+    inputs:
+      force_build:
+        description: '强制构建（即使 tag 已存在）'
+        required: false
+        default: 'false'
+        type: boolean
 
 jobs:
   check-version:
@@ -29,7 +35,12 @@ jobs:
       - name: Check if tag exists
         id: check-tag
         run: |
-          if git rev-parse "${{ env.VERSION }}" >/dev/null 2>&1; then
+          FORCE_BUILD="${{ github.event.inputs.force_build }}"
+          
+          if [ "$FORCE_BUILD" = "true" ]; then
+            echo "强制构建已启用，即使 tag 存在也会构建"
+            echo "should_build=true" >> $GITHUB_OUTPUT
+          elif git rev-parse "${{ env.VERSION }}" >/dev/null 2>&1; then
             echo "Tag ${{ env.VERSION }} already exists, skip build"
             echo "should_build=false" >> $GITHUB_OUTPUT
           else
